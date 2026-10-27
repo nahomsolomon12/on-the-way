@@ -72,7 +72,7 @@ function App() {
         {selectedCard ? (
           <CardDetail card={selectedCard} onBack={() => setSelectedCard(null)} onParent={() => navigate(selectedCard.parent)} />
         ) : page === 'home' ? (
-          <HomePage onOpenCard={openCard} />
+          <HomePage onNavigate={navigate} />
         ) : page === 'past' ? (
           <PastPage onContinue={() => navigate('future')} onOpenCard={openCard} />
         ) : (
@@ -83,7 +83,7 @@ function App() {
   )
 }
 
-function HomePage({ onOpenCard }) {
+function HomePage({ onNavigate }) {
   return (
     <div className="page home-page">
       <div className="home-heading">
@@ -92,14 +92,14 @@ function HomePage({ onOpenCard }) {
         <p>A place to honor what shaped you, and make space for what comes next.</p>
       </div>
       <div className="home-path">
-        <button type="button" className="home-path-card past-path" onClick={() => onOpenCard({ parent: 'past', title: 'Past chapters', eyebrow: 'Looking back · Ages 20 — 25', description: 'Reflect on the spiritual, family, career, and side-project chapters that brought you here.', icon: '↙' })}>
+        <button type="button" className="home-path-card past-path" onClick={() => onNavigate('past')}>
           <span className="card-index">01 / LOOKING BACK</span>
           <span className="path-icon">↙</span>
           <h3>Past chapters</h3>
           <p>Reflect on the spiritual, family, career, and side-project chapters that brought you here.</p>
           <span className="path-link">Enter ages 20 — 25 <b>→</b></span>
         </button>
-        <button type="button" className="home-path-card future-path" onClick={() => onOpenCard({ parent: 'future', title: 'Next chapter', eyebrow: 'Looking ahead · Ages 26 — 30', description: 'Hold your axioms and major goals close as you move through ages 26 — 30.', icon: '↗' })}>
+        <button type="button" className="home-path-card future-path" onClick={() => onNavigate('future')}>
           <span className="card-index">02 / LOOKING AHEAD</span>
           <span className="path-icon">↗</span>
           <h3>Next chapter</h3>
