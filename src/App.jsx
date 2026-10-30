@@ -1,15 +1,35 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import './App.css'
 
+const agePages = [26, 27, 28, 29, 30]
+
+function pageFromHash() {
+  const hash = window.location.hash.slice(1)
+  if (hash === 'past' || hash === 'future' || hash === 'home') return hash
+  const age = Number(hash.replace('future-', ''))
+  return agePages.includes(age) ? `future-${age}` : 'home'
+}
+
 function App() {
-  const [page, setPage] = useState('home')
+  const [page, setPage] = useState(pageFromHash)
   const [menuOpen, setMenuOpen] = useState(false)
   const [selectedCard, setSelectedCard] = useState(null)
+
+  useEffect(() => {
+    function handleHashChange() {
+      setPage(pageFromHash())
+      setSelectedCard(null)
+    }
+
+    window.addEventListener('hashchange', handleHashChange)
+    return () => window.removeEventListener('hashchange', handleHashChange)
+  }, [])
 
   function navigate(nextPage) {
     setPage(nextPage)
     setSelectedCard(null)
     setMenuOpen(false)
+    window.location.hash = nextPage
   }
 
   function openCard(card) {
@@ -52,7 +72,7 @@ function App() {
           </button>
           <button
             type="button"
-            className={page === 'future' ? 'nav-item active' : 'nav-item'}
+            className={page === 'future' || page.startsWith('future-') ? 'nav-item active' : 'nav-item'}
             onClick={() => navigate('future')}
           >
             <span className="nav-number">02</span>
@@ -65,7 +85,7 @@ function App() {
 
       <section className="content">
         <header className="topbar">
-          <div className="breadcrumb"><span>ON THE WAY</span>{page !== 'home' && <><i>/</i>{page === 'past' ? 'PAST CHAPTERS' : 'NEXT CHAPTER'}</>}{selectedCard && <><i>/</i>{selectedCard.title.toUpperCase()}</>}</div>
+          <div className="breadcrumb"><span>ON THE WAY</span>{page !== 'home' && <><i>/</i>{page === 'past' ? 'PAST CHAPTERS' : 'NEXT CHAPTER'}{page.startsWith('future-') && <><i>/</i>{page.replace('future-', 'AGE ')}</>}</>}{selectedCard && <><i>/</i>{selectedCard.title.toUpperCase()}</>}</div>
           <div className="topbar-actions"><button type="button" className="icon-button" aria-label="Notifications">♧</button><button type="button" className="share-button">Share journey <span>↗</span></button></div>
         </header>
 
@@ -75,8 +95,10 @@ function App() {
           <HomePage onNavigate={navigate} />
         ) : page === 'past' ? (
           <PastPage onContinue={() => navigate('future')} onOpenCard={openCard} />
+        ) : page === 'future' ? (
+          <FuturePage onOpenCard={openCard} onNavigate={navigate} />
         ) : (
-          <FuturePage onOpenCard={openCard} />
+          <AgePage age={Number(page.replace('future-', ''))} onOpenCard={openCard} onNavigate={navigate} />
         )}
       </section>
     </main>
@@ -113,6 +135,13 @@ function HomePage({ onNavigate }) {
 }
 
 function CardDetail({ card, onBack, onParent }) {
+  const [checkedItems, setCheckedItems] = useState({})
+
+  function toggleSectionItem(sectionTitle, item) {
+    const itemKey = `${sectionTitle}:${item}`
+    setCheckedItems((checked) => ({ ...checked, [itemKey]: !checked[itemKey] }))
+  }
+
   return (
     <div className="page card-detail-page">
       <button type="button" className="back-button" onClick={onBack}>← Back to {card.parent === 'past' ? 'Past chapters' : card.parent === 'future' ? 'Next chapter' : 'home'}</button>
@@ -126,7 +155,54 @@ function CardDetail({ card, onBack, onParent }) {
       <section className="detail-reflection">
         <span className="card-index">MAKE IT YOURS</span>
         <h3>{card.prompt || 'What does this mean for me right now?'}</h3>
-        <div className="detail-writing-area" aria-label="Reflection space" />
+        {card.sections ? (
+          <div className="detail-sections">
+            {card.sections.map((section) => (
+              <section className="detail-section" key={section.title}>
+                <div className="section-progress" aria-label={`${section.title} progress`}>
+                  <span
+                    className="section-progress-bar"
+                    style={{ width: `${((section.items.filter((item) => checkedItems[`${section.title}:${item}`]).length) / section.items.length) * 100}%` }}
+                  />
+                </div>
+                <h4>{section.title}</h4>
+                <ul className="checklist">
+                  {section.items.map((item) => {
+                    const itemKey = `${section.title}:${item}`
+                    return (
+                      <li key={item}>
+                        <label className={checkedItems[itemKey] ? 'checklist-item checked' : 'checklist-item'}>
+                          <input
+                            type="checkbox"
+                            checked={Boolean(checkedItems[itemKey])}
+                            onChange={() => toggleSectionItem(section.title, item)}
+                          />
+                          <span className="checklist-box" aria-hidden="true">✓</span>
+                          <span>{item}</span>
+                        </label>
+                      </li>
+                    )
+                  })}
+                </ul>
+              </section>
+            ))}
+          </div>
+        ) : card.projects ? (
+          <ol className="project-list" aria-label="Side projects in order of importance">
+            {card.projects.map((project) => (
+              <li key={project.name}>
+                <strong>{project.name}</strong>
+                {project.subProjects && (
+                  <ul>
+                    {project.subProjects.map((subProject) => <li key={subProject}>{subProject}</li>)}
+                  </ul>
+                )}
+              </li>
+            ))}
+          </ol>
+        ) : (
+          <div className="detail-writing-area" aria-label="Reflection space" />
+        )}
       </section>
       <div className="page-footer">
         <span>DETAIL VIEW</span>
@@ -174,12 +250,13 @@ function PastPage({ onContinue, onOpenCard }) {
   )
 }
 
-function FuturePage({ onOpenCard }) {
+function FuturePage({ onOpenCard, onNavigate, age = null }) {
   return (
     <div className="page future-page">
+      {age && <button type="button" className="back-button age-back-button" onClick={() => onNavigate('future')}>← Back to Next chapter</button>}
       <div className="page-heading">
         <div className="axioms-heading-block">
-          <span className="section-kicker">LOOKING AHEAD · 26 — 30</span>
+          <span className="section-kicker">{age ? `NEXT CHAPTER · AGE ${age}` : 'LOOKING AHEAD · 26 — 30'}</span>
           <h2>Axioms</h2>
           <ol className="axioms-list">
             <li>Memento mori</li>
@@ -188,8 +265,9 @@ function FuturePage({ onOpenCard }) {
             <li>Remember people, mentors, and family (chosen and blood).</li>
           </ol>
         </div>
-        <div className="year-badge"><span>MY NORTH STAR</span><strong>2026 → 2030</strong></div>
+        <div className="year-badge"><span>{age ? 'CHAPTER' : 'MY NORTH STAR'}</span><strong>{age ? `AGE ${age}` : '2026 → 2030'}</strong></div>
       </div>
+      <AgeNavigation currentAge={age} onNavigate={onNavigate} />
       <div className="commitments">
         <button type="button" className="commitment commitment-primary" onClick={() => onOpenCard({ parent: 'future', title: 'Spiritual', eyebrow: '01 / Spiritual', description: 'A commitment to true repentance and prayer, and to becoming the person I am called to be.', icon: '✦' })}>
           <div className="commitment-number">01</div>
@@ -206,7 +284,28 @@ function FuturePage({ onOpenCard }) {
           <div><span className="card-index">CAREER</span><h3>Career</h3></div>
           <span className="commitment-mark">♡</span>
         </button>
-        <button type="button" className="commitment commitment-quaternary" onClick={() => onOpenCard({ parent: 'future', title: 'Side projects', eyebrow: '04 / Side projects', description: 'Keep making space for ideas, experiments, and the projects that help me grow.', icon: '☼' })}>
+        <button type="button" className="commitment commitment-quaternary" onClick={() => onOpenCard({
+          parent: 'future',
+          title: 'Side projects',
+          eyebrow: '04 / Side projects',
+          description: 'Keep making space for ideas, experiments, and the projects that help me grow.',
+          icon: '☼',
+          ...(age !== 26 && {
+            projects: [
+              { name: 'Running + ATG' },
+              { name: 'Proverbs', subProjects: ['Speaking', 'Writing'] },
+              { name: 'Church service' },
+              { name: 'Building relationships' },
+            ],
+          }),
+          ...(age === 26 && {
+            sections: [
+              { title: 'Hygiene habituality', items: ['Morning routine', 'Evening routine', 'Keep my space clean'] },
+              { title: 'ATG basics', items: ['Strength training', 'Mobility practice', 'Track my progress'] },
+              { title: 'Proverbs', items: ['Writing', 'Speaking to a camera'] },
+            ],
+          }),
+        })}>
           <div className="commitment-number">04</div>
           <div><span className="card-index">SIDE PROJECTS</span><h3>Side projects</h3></div>
           <span className="commitment-mark">☼</span>
@@ -214,6 +313,46 @@ function FuturePage({ onOpenCard }) {
       </div>
       <div className="page-footer"><span>02 — 02</span><span className="footer-message">You&apos;re already on your way <b>✦</b></span></div>
     </div>
+  )
+}
+
+function AgePage({ age, onOpenCard, onNavigate }) {
+  if (age === 26 || age === 30) {
+    return <FuturePage age={age} onOpenCard={onOpenCard} onNavigate={onNavigate} />
+  }
+
+  return (
+    <div className="page age-page">
+      <button type="button" className="back-button" onClick={() => onNavigate('future')}>← Back to Next chapter</button>
+      <div className="age-page-heading">
+        <span className="section-kicker">NEXT CHAPTER · AGE {age}</span>
+        <h2>Age <em>{age}.</em></h2>
+        <p>This chapter is ready for you to define.</p>
+      </div>
+      <AgeNavigation currentAge={age} onNavigate={onNavigate} />
+      <div className="age-writing-area" aria-label={`Reflection space for age ${age}`} />
+    </div>
+  )
+}
+
+function AgeNavigation({ currentAge, onNavigate }) {
+  return (
+    <nav className="age-navigation" aria-label="Next chapter ages">
+      <span className="age-navigation-label">CHOOSE AN AGE</span>
+      <div className="age-links">
+        {agePages.map((age) => (
+          <button
+            type="button"
+            className={currentAge === age ? 'age-link active' : 'age-link'}
+            aria-current={currentAge === age ? 'page' : undefined}
+            key={age}
+            onClick={() => onNavigate(`future-${age}`)}
+          >
+            {age}
+          </button>
+        ))}
+      </div>
+    </nav>
   )
 }
 
